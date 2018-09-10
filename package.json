@@ -1,0 +1,27 @@
+{
+  "name": "json-with",
+  "version": "1.0.0",
+  "description": "js jsonapi",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rollup -c"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/XiangZhaoyang/json-with-js.git"
+  },
+  "keywords": [
+    "js",
+    "jsonapi"
+  ],
+  "author": "xzhaoyang",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/XiangZhaoyang/json-with-js/issues"
+  },
+  "homepage": "https://github.com/XiangZhaoyang/json-with-js#readme",
+  "devDependencies": {
+    "rollup": "^0.65.2"
+  }
+}
