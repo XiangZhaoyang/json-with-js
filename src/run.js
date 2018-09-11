@@ -1,6 +1,7 @@
-import { token } from './json';
+import { parse } from './json';
+import { token } from './token';
 
-const argv = process.argv.slice(2)
+const argv = process.argv.slice(2);
 
 const filePath = argv[0];
 const wfilePath = argv[1];
@@ -15,7 +16,9 @@ fs.readFile(codePath, 'utf-8', (err, data) => {
   if (err) throw err;
   else {
     let tokens = token(data);
-    console.log(tokens);
-    // fs.writeFile(writeFilePath, JSON.stringify(tokens));
+    // console.log(tokens);
+    let ast = parse(data);
+    // console.log(ast);
+    fs.writeFile(writeFilePath, JSON.stringify(ast));
   }
 })

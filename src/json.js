@@ -1,126 +1,114 @@
-// example
-// { "name": "Anna" }
-// Id=letter（letter| digit）*
-// 单词符号 种类识别码
-// {        1
-// }        2
-// "        3
-// :        4
-// [        5
-// ]        6
-// Id       10
+import { err } from './err';
+import { token as tokenFun } from './token';
 
-export function token(code) {
-  let column = 0,
-    row = 1,
-    index = 0;
-  let ch;
-  let i = 0;
-  let next = i + 1;
-  let tokens = [];
-  while (typeof (ch = code[i]) !== 'undefined') {
-    index += 1;
-    column += 1;
-    next = i + 1;
-    let count = 1;
-    if (isWorld(ch)) {
-      let token = ch;
-      while (isWorld(code[next])) {
-        token += code[next];
-        i += 1;
-        index += 1;
-        column += 1;
-        next = i + 1;
-        count += 1;
-      }
-      let item = {
-        token: token,
-        index: index,
-        column: column,
-        row: row,
-        count: count,
-        syn: 10
-      };
-      tokens.push(item);
-    } else if (ch === '\n') {
-      row += 1;
-      column = 0;
+export function parse(code) {
+  let tokens = tokenFun(code);
+  let tokenStream = new TokenStream(tokens);
+  let token = tokenStream.getToken();
+  let rt = null;
+  if (isBraceBegin(token)) {
+    rt = new ObjTree([], null, 'obj');
+    walkObj(tokenStream, rt);
+  } else if (isSquareBegin(token)) {
+    rt = new ObjTree([], null, 'array');
+    walkArray(tokenStream, rt);
+  } else {
+    err('请以"{"或"["符号开始!', token.row, token.column, token.token);
+  }
+  return rt;
+}
+
+function walkObj(tokenStream, parent) {
+  let token = tokenStream.getToken();
+  if (!isBraceBegin(token)) {
+    err('obj要以"{"开始', token.row, token.column, token.token);
+  }
+  tokenStream.next();
+  token = tokenStream.getToken();
+  while (isDoubleQuotation(token)) {
+    let parentNode = parseString(tokenStream);
+    tokenStream.next();
+    token = tokenStream.getToken();
+    if (!isColon(token)) {
+      err('obj缺少":', token.row, token.column, token.token);
     } else {
-      let item = {
-        token: ch,
-        index: index,
-        column: column,
-        row: row,
-        count: 1,
-        syn: -1
-      };
-      switch(ch) {
-        case '\n':
-          row += 1;
-          column = 0;
-          break;
-        case '{':
-          item.syn = 1;
-          tokens.push(item);
-          break;
-        case '}':
-          item.syn = 2;
-          tokens.push(item);
-          break;
-        case '"':
-          item.syn = 3;
-          tokens.push(item);
-          break;
-        case ':':
-          item.syn = 4;
-          tokens.push(item);
-          break;
-        case '[':
-          item.syn = 5;
-          tokens.push(item);
-          break;
-        case ']':
-          item.syn = 6;
-          tokens.push(item);
-          break;
+      tokenStream.next();
+      token = tokenStream.getToken();
+      if (isDoubleQuotation(token)) {
+        let childNode = parseString(tokenStream);
+        parentNode.insert(childNode);
+        ASTAdd(parent, parentNode);
+      } else if (isBraceBegin(token)) {
+        walkObj(tokenStream, parentNode);
+      } else {
+        err(`obj出现未定义字符串${token.token}`, token.row, token.column, token.token);
       }
     }
-    i += 1;
+    tokenStream.next();
+    token = tokenStream.getToken();
+    if (isComma(token)) {
+      tokenStream.next();
+      token = tokenStream.getToken();
+    }
   }
-  return tokens;
+  if (isBraceEnd(token)) {
+    tokenStream.next();
+  } else {
+    err('obj要以"}"结束', token.row, token.column, token.token);
+  }
 }
 
-let rt;
-
-function parse(code) {
-  let tokens = token(code);
-  let tokenObj = new Token(tokens);
-  let token = tokenObj.getToken();
-  if (!isBraceBegin(token) || !isSquareBegin(token)) {
-    console.log('请以"{"或"["符号开始!');
-    return;
+function walkArray(tokenStream, parent) {
+  let token = tokenStream.getToken();
+  if (!isSquareBegin(token)) {
+    err('array要以"["开始', token.row, token.column, token.token);
   }
+  tokenStream.next();
+  token = tokenStream.getToken();
   if (isBraceBegin(token)) {
-    let rt = {};
-    tokenObj.next();
+    let newParentNode = new ObjTree([], null, 'boj');
+    ASTAdd(parent, newParentNode);
+    walkObj(tokenStream, newParentNode)
+  }
+  while(isDoubleQuotation(token)) {
+    let node = parseString(tokenStream);
+    ASTAdd(parent, node);
+    tokenStream.next();
+    token = tokenStream.getToken();
+    if (isComma(token)) {
+      tokenStream.next();
+      token = tokenStream.getToken();
+    }
+  }
+  if (isSquareBegin(token)) {
+    let parentNode = new ObjTree([], null, 'array');
+    parent.insert(parentNode);
+    walkArray(tokenStream, parentNode);
+  } else if (isSquareEnd(token)) {
+    tokenStream.next();
+  } else {
+    err('array要以"]"结束', token.row, token.column, token.token);
   }
 }
 
-function walkObj(tokenObj) {
-  let token = tokenObj.getToken();
-  if (!isBraceBegin(token)) {
-    console.log('obj要以"{"开始');
-    return;
+function parseString(tokenStream) {
+  let token = tokenStream.getToken();
+  if (!isDoubleQuotation(token)) {
+    err('string要以"开始', token.row, token.column, token.token);
   }
-  tokenObj.next();
-  // if (!rt) rt = {};
-  token = tokenObj.getToken();
-  // if () {
-  //   rt;
-  // }
+  tokenStream.next();
+  token = tokenStream.getToken();
+  let node = null;
+  if (isIdentifier(token)) {
+    node = new ObjTree(token.token, token);
+    tokenStream.next();
+  }
+  token = tokenStream.getToken();
+  if (!isDoubleQuotation(token)) {
+    err('string要以"结束', token.row, token.column, token.token);
+  }
+  return node;
 }
-
-function walkArray(tokenObj) {}
 
 function isBraceBegin(token) {
   return token.syn === 1;
@@ -146,35 +134,50 @@ function isColon(token) {
   return token.syn === 4;
 }
 
+function isComma(token) {
+  return token.syn === 7;
+}
+
 function isIdentifier(token) {
   return token.syn === 10;
 }
 
 class ObjTree {
-  constructor(item) {
-    this.node = {
-      children: [],
-      ele: item,
-      parent: null
-    };
+  constructor(item, node ,type) {
+    this.children = [];
+    this.ele = item;
+    this.node = node;
+    this.type = type;
+    this.parent = null;
   }
   insert(node) {
     this.children.push(node);
     node.parent = this;
   }
+  appendTo(node) {
+    node.children.push(this);
+    this.parent = node;
+  }
+  toJSON() {
+    return JSON.stringify.call(this);
+  }
 }
 
-class Token {
+function ASTAdd(root, node) {
+  root.insert(node);
+}
+
+class TokenStream {
   constructor(tokens) {
     this.tokens = tokens;
     this.index = 0;
   }
   next() {
-    if (this.index < this.length - 1) {
+    if (this.index > this.tokens.length - 1) {
+      return -1;
+    } else {
       this.index += 1;
       return this.index;
-    } else {
-      return -1;
     }
   }
   pre() {
@@ -195,12 +198,3 @@ class Token {
     return this.tokens[this.index + 1];
   }
 }
-
-function isWorld(ch) {
-  let reg = /\w/;
-  return reg.test(ch);
-}
-
-// let codeTest = '{"name": "xiangzhaoyang"}';
-// let tokens_r = token(codeTest);
-// console.log(tokens_r);

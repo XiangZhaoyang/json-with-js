@@ -1,4 +1,2 @@
-{
-  "name": "xiangzhaoyang",
-  "age": "19"
-}
+
+{ "name": "xiang" }
